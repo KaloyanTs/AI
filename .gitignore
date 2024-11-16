@@ -1,0 +1,9 @@
+*.*
+!*.cpp
+!*.csv
+!*.txt
+!*.pdf
+!README*
+build/
+.vscode/
+!.gitignore

@@ -4,26 +4,12 @@
 #include <cmath>
 #include <unordered_set>
 #include <stack>
+#include <algorithm>
+#include <chrono>
 using namespace std;
-
-struct VectorHash
-{
-    size_t operator()(const std::vector<int> &v) const
-    {
-        std::hash<int> hasher;
-        size_t seed = 0;
-        for (int i : v)
-        {
-            seed ^= hasher(i) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-        }
-        return seed;
-    }
-};
 
 int zeroPos;
 int size;
-
-unordered_set<vector<int>, VectorHash> visited;
 
 enum Move
 {
@@ -33,6 +19,23 @@ enum Move
     DOWN = 2,
     NO_MOVE = 3,
 };
+
+std::string toString(int move)
+{
+    switch (move)
+    {
+    case RIGHT:
+        return "right";
+    case UP:
+        return "up";
+    case LEFT:
+        return "left";
+    case DOWN:
+        return "down";
+    default:
+        return "unknown";
+    }
+}
 
 void showVector(vector<int> &v)
 {
@@ -66,26 +69,25 @@ bool isGoalState(vector<int> &board)
 
 struct State
 {
-    State *parent;
     int cost;
-    vector<int> state;
+    // vector<int> state;
     int holeRow, holeCol;
     int heuristic;
     Move parentToMe;
 
-    void print()
+    void print(vector<int> &board)
     {
-        cout << "State:\n";
+        cerr << "State:\n";
         for (int i = 0; i < size; i++)
         {
             for (int j = 0; j < size; j++)
-                cout << state[i * size + j] << '\t';
-            cout << '\n';
+                cerr << board[i * size + j] << '\t';
+            cerr << '\n';
         }
-        cout << "Hole in: " << holeRow << ',' << holeCol
+        cerr << "Hole in: " << holeRow << ',' << holeCol
              << "\nCost: " << cost << "\t Heuristic: "
              << heuristic << boolalpha << '\n'
-             << "goal check: " << isGoalState(state) << '\n';
+             << "goal check: " << isGoalState(board) << '\n';
     }
 };
 
@@ -97,12 +99,12 @@ struct CompareState
     }
 };
 
-bool available(State *state, Move m)
+bool available(State &state, Move m)
 {
-    return (state->holeRow + (m / 2)) >= 0 &&
-           (state->holeCol + (m % 2)) >= 0 &&
-           (state->holeRow + (m / 2)) < size &&
-           (state->holeCol + (m % 2)) < size;
+    return (state.holeRow + (m / 2)) >= 0 &&
+           (state.holeCol + (m % 2)) >= 0 &&
+           (state.holeRow + (m / 2)) < size &&
+           (state.holeCol + (m % 2)) < size;
 }
 
 int heuristic(vector<int> &board)
@@ -168,77 +170,73 @@ bool isSolvable(vector<int> &b, int z)
 }
 
 int expanded = 0;
+vector<int> path;
 
-int rec(State *current, int threshold, int depth)
+int rec(State &current, int threshold, int depth, vector<int> &board)
 {
+    // current.print(board);
     ++expanded;
-    current->print();
     // recursively till solution or above threshold
     // returns found cost over threshold or -1 if solution
     // maybe -2 for no children
 
-    if (isGoalState(current->state))
+    if (isGoalState(board))
     {
         cout << depth << '\n';
-        cout << current->parentToMe << '\n';
+        if (current.parentToMe != NO_MOVE)
+            path.push_back(-current.parentToMe);
         return -1;
     }
-    if (current->cost + current->heuristic > threshold)
-        return current->cost + current->heuristic;
+    if (current.cost + current.heuristic > threshold)
+        return current.cost + current.heuristic;
 
     int res = threshold;
     for (Move m : {RIGHT, UP, LEFT, DOWN})
     {
-        if (m + current->parentToMe != 0 && available(current, m))
+        if (m + current.parentToMe != 0 && available(current, m))
         {
-            State *s = new State(*current);
-            s->parent = current;
-            swap(s->state[s->holeRow * size + s->holeCol],
-                 s->state[(s->holeRow + (m / 2)) * size + (s->holeCol + (m % 2))]);
-            s->holeRow += (m / 2);
-            s->holeCol += (m % 2);
-            s->heuristic = heuristic(s->state);
-            s->cost += 1;
-            s->parentToMe = m;
-            int recRes = rec(s, threshold, depth + 1);
+            State s = current;
+            swap(board[s.holeRow * size + s.holeCol],
+                 board[(s.holeRow + (m / 2)) * size + (s.holeCol + (m % 2))]);
+            s.holeRow += (m / 2);
+            s.holeCol += (m % 2);
+            s.heuristic = heuristic(board);
+            s.cost += 1;
+            s.parentToMe = m;
+            int recRes = rec(s, threshold, depth + 1, board);
+            swap(board[s.holeRow * size + s.holeCol],
+                 board[(s.holeRow - (m / 2)) * size + (s.holeCol - (m % 2))]);
             if (recRes == -1)
             {
-                cout << s->parentToMe << '\n';
+                if (current.parentToMe != NO_MOVE)
+                    path.push_back(-current.parentToMe);
                 return -1;
             }
             else if (recRes > -2)
                 res = res == threshold ? recRes : min(res, recRes);
         }
     }
-    delete current;
-    return -2;
+    return res == threshold ? -2 : res;
 }
 
 void IDA_star(vector<int> &initialState, int zero)
 {
-    State *init = new State;
-    init->state = initialState;
-    init->holeRow = zero / size;
-    init->holeCol = zero % size;
-    init->heuristic = heuristic(initialState);
-    init->cost = 0;
-    init->parent = nullptr;
-    init->parentToMe = NO_MOVE;
+    State init;
+    init.holeRow = zero / size;
+    init.holeCol = zero % size;
+    init.heuristic = heuristic(initialState);
+    init.cost = 0;
+    init.parentToMe = NO_MOVE;
 
-    int threshold = 0;
-
-    cout << "init\n";
+    int threshold = init.heuristic;
 
     do
     {
-        threshold = rec(init, threshold, 0);
-        cout << threshold << " is the new threshold\n";
+        threshold = rec(init, threshold, 0, initialState);
     } while (threshold > -1);
 
     if (threshold == -2)
         cout << "No solution??? something went wrong!!!\n";
-
-    cout << "End!\n";
 }
 
 int main()
@@ -266,7 +264,15 @@ int main()
         cout << -1 << '\n';
         return 0;
     }
+    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
     IDA_star(state, z);
+    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+
+    std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "[ms]" << std::endl;
+
+    reverse(path.begin(), path.end());
+    for (int x : path)
+        cout << toString(x) << '\n';
 
     return 0;
 }
