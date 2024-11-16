@@ -4,8 +4,8 @@
 
 ```c++
 0. Leap Frog Puzzle (Tree traversal)
-1. Sliding puzzle (IDA*)
-2. N Queens problem (Min-conflict approach)
-3. Travelling salesman (Genetic algorithm)
+1. Sliding Puzzle (IDA*)
+2. N Queens Problem (Min-conflict approach)
+3. Travelling Salesman (Genetic algorithm)
 4. Tic Tac Toe (Minimax algorithm)
 ```
