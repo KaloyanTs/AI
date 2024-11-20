@@ -7,3 +7,5 @@
 build/
 .vscode/
 !.gitignore
+!*.py
+!*.ipynb
